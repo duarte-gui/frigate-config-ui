@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Frigate UI — Config</title>
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+<style>
+  :root {
+    --bg: #0b0f14; --panel: #151b23; --panel2: #1e252f; --border: #2a3340;
+    --text: #e6edf3; --muted: #8b98a5; --accent: #3b82f6; --accent-h: #2563eb;
+    --ok: #22c55e; --warn: #f59e0b; --err: #ef4444;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 12px rgba(0,0,0,.2);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column;
+  }
+  header {
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    padding: 12px 20px; display: flex; align-items: center; gap: 16px;
+  }
+  header h1 { margin: 0; font-size: 16px; font-weight: 600; }
+  header .spacer { flex: 1; }
+  header .status { font-size: 12px; color: var(--muted); }
+  header .status.ok { color: var(--ok); }
+  header .status.err { color: var(--err); }
+  nav {
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    display: flex; overflow-x: auto; padding: 0 12px;
+  }
+  nav button {
+    background: none; border: none; color: var(--muted);
+    padding: 10px 16px; cursor: pointer; font-size: 13px;
+    border-bottom: 2px solid transparent; white-space: nowrap;
+  }
+  nav button:hover { color: var(--text); }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  main { flex: 1; overflow: auto; padding: 24px; max-width: 1100px; width: 100%; margin: 0 auto; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+  h2 { margin: 0 0 6px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+  h2 + .subtitle { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+  h3 {
+    margin: 24px 0 12px; font-size: 11px; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .08em;
+  }
+  .banner {
+    background: linear-gradient(180deg, rgba(59,130,246,.08), rgba(59,130,246,.02));
+    border: 1px solid rgba(59,130,246,.25); border-radius: 8px;
+    padding: 10px 14px; margin-bottom: 20px; font-size: 13px; color: var(--text);
+    display: flex; align-items: start; gap: 10px;
+  }
+  .banner .ico { color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  label { display: flex; align-items: center; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+  input[type=text], input[type=number], input[type=password], select, textarea {
+    width: 100%; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 9px 11px; font: inherit; font-size: 13px;
+    transition: border-color .12s, background .12s;
+  }
+  input:hover:not(:focus), select:hover:not(:focus), textarea:hover:not(:focus) { border-color: #3a4555; }
+  textarea { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .chk { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); }
+  .chk input { margin: 0; }
+  button.btn {
+    background: var(--accent); color: white; border: none; border-radius: 6px;
+    padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  button.btn:hover { background: var(--accent-h); }
+  button.btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  button.btn.ghost:hover { border-color: var(--accent); }
+  button.btn.danger { background: var(--err); }
+  button.btn.warn { background: var(--warn); }
+  .actions { position: sticky; bottom: 0; background: var(--bg); padding: 16px 0;
+    display: flex; gap: 8px; border-top: 1px solid var(--border); margin-top: 20px; }
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; padding: 12px 16px;
+    border-radius: 6px; font-size: 13px; z-index: 100;
+    background: var(--panel); border: 1px solid var(--border);
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  }
+  .toast.ok { border-color: var(--ok); }
+  .toast.err { border-color: var(--err); }
+  .list-item {
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px; margin-bottom: 8px;
+  }
+  .list-item-head {
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+  }
+  .list-item-head .name { flex: 1; font-weight: 500; }
+  .list-item-body { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); display: none; }
+  .list-item.open .list-item-body { display: block; }
+  .list-item .caret::before { content: "▶"; font-size: 10px; color: var(--muted); margin-right: 6px; }
+  .list-item.open .caret::before { content: "▼"; }
+  .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  #rawEditor { width: 100%; height: 70vh; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px;
+    background: var(--panel2); color: var(--muted); }
+  .badge.on { background: rgba(34,197,94,.2); color: var(--ok); }
+  .inputs-list .input-row { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; margin-bottom: 6px; align-items: start; }
+  .inputs-list .roles { display: flex; gap: 4px; flex-wrap: wrap; }
+  .inputs-list .role-chk { font-size: 11px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; user-select: none; }
+  .inputs-list .role-chk.on { background: var(--accent); border-color: var(--accent); color: white; }
+
+  /* help tooltip */
+  .help {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 15px; height: 15px; margin-left: 6px;
+    border-radius: 50%; background: var(--panel2); color: var(--muted);
+    font: 600 10px/1 -apple-system, BlinkMacSystemFont, sans-serif;
+    cursor: help; position: relative; user-select: none;
+    border: 1px solid var(--border);
+  }
+  .help:hover { background: var(--accent); color: white; border-color: var(--accent); }
+  .help::after {
+    content: attr(data-tip);
+    position: absolute; bottom: calc(100% + 8px); left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: #0a0e13; color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 12px; font: 400 12px/1.45 -apple-system, BlinkMacSystemFont, sans-serif;
+    white-space: normal; width: max-content; max-width: 280px;
+    text-align: left; letter-spacing: normal; text-transform: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    pointer-events: none; opacity: 0; z-index: 1000;
+    transition: opacity .12s, transform .12s;
+  }
+  .help::before {
+    content: ""; position: absolute; bottom: calc(100% + 2px); left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent; border-top-color: var(--border);
+    pointer-events: none; opacity: 0; z-index: 1000;
+    transition: opacity .12s;
+  }
+  .help:hover::after, .help:hover::before { opacity: 1; }
+  .help:hover::after { transform: translateX(-50%) translateY(0); }
+
+  /* nav group separator */
+  nav .sep { width: 1px; background: var(--border); margin: 6px 6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎥 Frigate Config</h1>
+  <span id="status" class="status">carregando...</span>
+  <span class="spacer"></span>
+  <button class="btn ghost" id="reloadBtn" title="Recarrega a config atual do Frigate, descartando alterações não salvas">Recarregar</button>
+  <button class="btn warn" id="saveRestartBtn" title="Salva a config e reinicia o Frigate (necessário para aplicar mudanças em câmeras, detectores e streams)">Salvar & Reiniciar</button>
+  <button class="btn" id="saveBtn" title="Salva a config no arquivo; nem toda mudança tem efeito sem reiniciar">Salvar</button>
+</header>
+
+<nav id="tabs">
+  <button data-tab="cameras" class="active">📹 Câmeras</button>
+  <span class="sep"></span>
+  <button data-tab="record">Padrão: Gravação</button>
+  <button data-tab="snapshots">Padrão: Snapshots</button>
+  <button data-tab="objects">Padrão: Objetos</button>
+  <span class="sep"></span>
+  <button data-tab="mqtt">MQTT</button>
+  <button data-tab="detectors">Detectores</button>
+  <button data-tab="go2rtc">go2rtc</button>
+  <span class="sep"></span>
+  <button data-tab="raw">YAML bruto</button>
+</nav>
+
+<main>
+
+<section class="tab active" data-tab="cameras">
+  <h2>Câmeras</h2>
+  <p class="subtitle">Cada câmera herda os padrões globais. Campos preenchidos aqui sobrescrevem esses padrões apenas para esta câmera.</p>
+  <div id="camerasList"></div>
+  <button class="btn ghost" id="addCameraBtn">+ Adicionar câmera</button>
+</section>
+
+<section class="tab" data-tab="mqtt">
+  <h2>MQTT</h2>
+  <p class="subtitle">Broker para publicar eventos e receber comandos. Usado por Home Assistant e outros integradores.</p>
+  <div class="card">
+    <label class="chk"><input type="checkbox" id="mqtt_enabled"> Habilitado
+      <span class="help" data-tip="Se ligado, o Frigate publica eventos e status no broker MQTT configurado abaixo.">?</span>
+    </label>
+    <div class="grid" style="margin-top:12px">
+      <div><label>Host <span class="help" data-tip="Endereço do broker MQTT. Ex: 192.168.1.10, mosquitto, broker.local.">?</span></label><input id="mqtt_host" type="text"></div>
+      <div><label>Porta <span class="help" data-tip="Porta do broker. Padrão: 1883 (sem TLS) ou 8883 (com TLS).">?</span></label><input id="mqtt_port" type="number" placeholder="1883"></div>
+      <div><label>Topic prefix <span class="help" data-tip="Prefixo dos tópicos publicados. Ex: 'frigate' → frigate/events, frigate/stats.">?</span></label><input id="mqtt_topic_prefix" type="text" placeholder="frigate"></div>
+      <div><label>Client ID <span class="help" data-tip="Identificador único desta instância no broker. Útil quando há mais de um Frigate.">?</span></label><input id="mqtt_client_id" type="text" placeholder="frigate"></div>
+      <div><label>Usuário <span class="help" data-tip="Usuário de autenticação no broker, se exigido.">?</span></label><input id="mqtt_user" type="text"></div>
+      <div><label>Senha <span class="help" data-tip="Senha do usuário no broker.">?</span></label><input id="mqtt_password" type="password"></div>
+      <div><label>Stats interval (s) <span class="help" data-tip="Segundos entre publicações de estatísticas (CPU, FPS etc). Padrão: 60.">?</span></label><input id="mqtt_stats_interval" type="number"></div>
+    </div>
+  </div>
+</section>
+
+<section class="tab" data-tab="detectors">
+  <h2>Detectores</h2>
+  <p class="subtitle">Hardware ou software que processa a IA de detecção. Pode ter múltiplos (ex: 2 Corals USB).</p>
+  <div id="detectorsList"></div>
+  <button class="btn ghost" id="addDetectorBtn">+ Adicionar detector</button>
+</section>
+
+<section class="tab" data-tab="record">
+  <h2>Gravação — padrão global</h2>
+  <p class="subtitle">Aplica-se a todas as câmeras, exceto as que tenham override na aba <b>Câmeras</b>.</p>
+  <div class="card">
+    <label class="chk"><input type="checkbox" id="record_enabled"> Habilitado
+      <span class="help" data-tip="Liga gravação em disco. Câmeras individuais precisam ter input com role 'record'.">?</span>
+    </label>
+    <div class="grid" style="margin-top:12px">
+      <div><label>Retenção geral (dias) <span class="help" data-tip="Dias mantendo gravação contínua antes de apagar. 0 = não guarda gravação contínua (só eventos).">?</span></label><input id="record_retain_days" type="number"></div>
+      <div><label>Modo <span class="help" data-tip="all = grava tudo. motion = só com movimento. active_objects = só quando há objeto rastreado ativo.">?</span></label>
+        <select id="record_retain_mode">
+          <option value="all">all</option>
+          <option value="motion">motion</option>
+          <option value="active_objects">active_objects</option>
+        </select>
+      </div>
+      <div><label>Alerts — retenção (dias) <span class="help" data-tip="Dias mantendo clipes de alertas (eventos importantes: pessoa em zona crítica etc).">?</span></label><input id="record_alerts_days" type="number"></div>
+      <div><label>Detections — retenção (dias) <span class="help" data-tip="Dias mantendo clipes de detecções gerais (todo evento rastreado que não virou alerta).">?</span></label><input id="record_detections_days" type="number"></div>
+      <div><label>Pre capture (s) <span class="help" data-tip="Segundos de vídeo ANTES do evento incluídos no clipe. Ex: 10 = 10s de contexto antes.">?</span></label><input id="record_pre_capture" type="number"></div>
+      <div><label>Post capture (s) <span class="help" data-tip="Segundos de vídeo DEPOIS do evento incluídos no clipe.">?</span></label><input id="record_post_capture" type="number"></div>
+    </div>
+  </div>
+</section>
+
+<section class="tab" data-tab="snapshots">
+  <h2>Snapshots — padrão global</h2>
+  <p class="subtitle">Imagens JPG salvas para cada evento. Aplica-se a todas as câmeras sem override.</p>
+  <div class="card">
+    <label class="chk"><input type="checkbox" id="snap_enabled"> Habilitado
+      <span class="help" data-tip="Salva JPG de cada evento detectado na pasta de snapshots.">?</span>
+    </label>
+    <div class="grid" style="margin-top:12px">
+      <div><label>Retenção (dias) <span class="help" data-tip="Dias mantendo snapshots antes de apagar. 0 = mantém indefinidamente.">?</span></label><input id="snap_retain_days" type="number"></div>
+      <div><label>Qualidade (1-100) <span class="help" data-tip="Qualidade de compressão JPEG. Padrão: 70. Maior = mais nítido, arquivos maiores.">?</span></label><input id="snap_quality" type="number" min="1" max="100"></div>
+      <div><label class="chk"><input type="checkbox" id="snap_clean_copy"> Clean copy
+        <span class="help" data-tip="Salva também uma cópia sem overlays (sem timestamp, sem caixa de objeto). Útil para reconhecimento facial posterior.">?</span>
+      </label></div>
+      <div><label class="chk"><input type="checkbox" id="snap_timestamp"> Timestamp
+        <span class="help" data-tip="Desenha data/hora no canto do snapshot.">?</span>
+      </label></div>
+      <div><label class="chk"><input type="checkbox" id="snap_bounding_box"> Bounding box
+        <span class="help" data-tip="Desenha uma caixa ao redor do objeto detectado no snapshot.">?</span>
+      </label></div>
+      <div><label class="chk"><input type="checkbox" id="snap_crop"> Crop
+        <span class="help" data-tip="Recorta o snapshot focando só no objeto detectado, em vez de salvar o frame inteiro.">?</span>
+      </label></div>
+    </div>
+  </div>
+</section>
+
+<section class="tab" data-tab="objects">
+  <h2>Objetos rastreados — padrão global</h2>
+  <p class="subtitle">Lista de objetos que o Frigate procura. Cada câmera pode ter uma lista própria na aba <b>Câmeras</b>.</p>
+  <div class="card">
+    <label>Lista de objetos (um por linha)
+      <span class="help" data-tip="Cada linha = um objeto que o Frigate tentará detectar e rastrear. Use nomes exatos do labelmap COCO.">?</span>
+    </label>
+    <textarea id="objects_track" rows="8" placeholder="person&#10;car&#10;dog"></textarea>
+    <p class="hint">Objetos suportados: person, car, truck, motorcycle, bicycle, dog, cat, bird, etc.</p>
+  </div>
+</section>
+
+<section class="tab" data-tab="go2rtc">
+  <h2>go2rtc — Streams</h2>
+  <p class="subtitle">Relay de streams. Câmeras podem apontar para <code class="mono">rtsp://127.0.0.1:8554/nome</code> em vez de conectar direto — evita múltiplas conexões na câmera física.</p>
+  <div class="card">
+    <label>Streams
+      <span class="help" data-tip="Formato: nome: url. Uma linha por stream. Mesma 'nome' repetido vira lista de fontes alternativas.">?</span>
+    </label>
+    <p class="hint">Cada linha: <code class="mono">nome: url</code></p>
+    <textarea id="go2rtc_streams" rows="10" placeholder="camera1: rtsp://user:pass@192.168.1.50:554/stream"></textarea>
+  </div>
+</section>
+
+<section class="tab" data-tab="raw">
+  <h2>YAML bruto</h2>
+  <p class="subtitle">Editor de texto completo do <code class="mono">config.yml</code>. Ao salvar nesta aba, substitui tudo.</p>
+  <textarea id="rawEditor" class="mono"></textarea>
+</section>
+
+<div class="actions">
+  <span id="dirtyInfo" class="status"></span>
+  <span class="spacer" style="flex:1"></span>
+</div>
+
+</main>
+
+<div id="toast" class="toast" style="display:none"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+[Unit]
+Description=Frigate UI — config editor
+After=frigate.service
+Wants=frigate.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/frigate-ui
+ExecStart=/usr/bin/python3 /opt/frigate-ui/server.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
