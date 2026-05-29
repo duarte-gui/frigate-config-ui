@@ -28,7 +28,27 @@ O `save_option=restart` da API do Frigate reinicia **apenas** o serviço `frigat
 
 Por isso o **"Salvar & Reiniciar"** chama também `POST /restart-go2rtc`, que executa `systemctl restart go2rtc`. Ajuste esse comando em `server.py` (`_restart_go2rtc`) conforme o seu ambiente (ex.: `docker restart frigate`, ou o nome da sua unidade/serviço).
 
-## Instalação (systemd)
+## Instalação
+
+Rode **no mesmo host do Frigate** (o proxy fala com `http://127.0.0.1:5000`).
+
+### Rápida (script)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/duarte-gui/frigate-config-ui/master/install.sh | sudo bash
+```
+
+Ou a partir de um clone:
+
+```bash
+git clone https://github.com/duarte-gui/frigate-config-ui
+cd frigate-config-ui
+sudo bash install.sh
+```
+
+O script copia os arquivos para `/opt/frigate-ui`, instala o serviço systemd, faz backup de uma instalação anterior e sobe o `frigate-ui`. Para remover: `sudo bash install.sh --uninstall`.
+
+### Manual
 
 ```bash
 sudo mkdir -p /opt/frigate-ui
