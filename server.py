@@ -85,8 +85,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         sys.stderr.write(f"[{self.log_date_time_string()}] {fmt % args}\n")
 
 
+class Server(socketserver.ThreadingTCPServer):
+    # Sem SO_REUSEADDR, um socket ainda em TIME_WAIT faz o bind falhar com
+    # "Address already in use", e como a unidade tem Restart=on-failure isso
+    # vira um loop de reinicios ate o kernel liberar a porta.
+    allow_reuse_address = True
+    # Conexoes keep-alive do navegador seguravam threads vivas e atrasavam o
+    # desligamento; como thread daemon elas nao impedem o processo de sair.
+    daemon_threads = True
+
+
 if __name__ == "__main__":
-    with socketserver.ThreadingTCPServer(("0.0.0.0", PORT), Handler) as httpd:
+    with Server(("0.0.0.0", PORT), Handler) as httpd:
         print(f"Frigate UI → http://localhost:{PORT}  (proxy → {FRIGATE_URL})")
         try:
             httpd.serve_forever()
