@@ -1,6 +1,6 @@
 # Frigate Config UI
 
-Editor web leve para a configuração do [Frigate NVR](https://github.com/blakeblackshear/frigate), sem dependências (só stdlib do Python + um CDN para `js-yaml`). Pensado para rodar ao lado do Frigate (ex.: LXC/Proxmox, Docker ou bare-metal) e editar a config por uma interface amigável em vez de YAML cru.
+Editor web leve para a configuração do [Frigate NVR](https://github.com/blakeblackshear/frigate), sem dependências (só stdlib do Python + um CDN para a lib [`yaml`](https://eemeli.org/yaml/)). Pensado para rodar ao lado do Frigate (ex.: LXC/Proxmox, Docker ou bare-metal) e editar a config por uma interface amigável em vez de YAML cru.
 
 ## Arquitetura
 
@@ -21,6 +21,21 @@ navegador ──HTTP──> server.py (:8000) ──proxy /api/*──> Frigate 
 - Abas para MQTT, detectores, gravação, snapshots, objetos e **streams go2rtc**
 - Editor de **YAML cru** com substituição completa
 - **Salvar** (sem reiniciar) e **Salvar & Reiniciar**
+
+## Comentários e formatação sobrevivem ao salvar
+
+O editor monta um objeto JS a partir do formulário, mas **não regrava o arquivo
+a partir dele**. Ele lê a config como um `Document` da lib `yaml` — a árvore com
+os comentários e a formatação originais — e no salvamento aplica sobre essa
+árvore apenas os campos que realmente mudaram.
+
+A diferença é grande na prática: um `load`/`dump` reescreve o arquivo inteiro e
+descarta todo comentário, enquanto aqui alterar um campo produz um diff de uma
+linha. Comentários que você escreveu no `config.yml` continuam lá, na mesma
+posição, depois de salvar pela interface.
+
+A aba **YAML cru** mostra o arquivo real, com os comentários. O que você editar
+ali vira a nova base — inclusive comentários novos.
 
 ## go2rtc — atenção ao reiniciar
 

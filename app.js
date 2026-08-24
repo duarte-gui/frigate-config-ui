@@ -6,6 +6,7 @@ const FFMPEG_ROLES = ["detect", "record", "audio"];
 const TRACKED_OBJECTS = ["person","car","truck","motorcycle","bicycle","bus","dog","cat","bird","package"];
 
 let configDoc = null;   // parsed JS object
+let baseDoc = null;     // yaml Document: a arvore com comentarios e formatacao
 let rawYaml = "";       // raw YAML string
 let had = {};           // which root sections existed at load time
 
@@ -75,13 +76,60 @@ const pruneEmpty = (obj) => {
   return obj;
 };
 
+// ---------- serializacao preservando comentarios ----------
+// O editor monta um objeto JS a partir do formulario. Gravar esse objeto com
+// um dump joga fora tudo que o YAML tem de humano: comentarios, ordem das
+// chaves, espacamento. Em vez disso aplicamos o objeto sobre o Document que foi
+// lido, tocando so o que realmente mudou.
+const isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+const nodeToJS = (n) => (n && typeof n.toJSON === "function") ? n.toJSON() : n;
+const sameValue = (a, b) =>
+  JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
+const nodeKeys = (node) =>
+  node.items.map(it => String(it.key && it.key.value !== undefined ? it.key.value : it.key));
+
+function applyToDoc(doc, next) {
+  const apply = (path, value) => {
+    const node = doc.getIn(path, true);
+    // So da para descer chave a chave quando os dois lados sao mapa; qualquer
+    // outro caso (escalar, lista, mudanca de tipo) e substituicao direta.
+    if (isPlainObject(value) && YAML.isMap(node)) {
+      for (const k of Object.keys(value)) apply([...path, k], value[k]);
+      for (const k of nodeKeys(node)) {
+        if (!Object.prototype.hasOwnProperty.call(value, k)) doc.deleteIn([...path, k]);
+      }
+      return;
+    }
+    if (!sameValue(nodeToJS(node), value)) doc.setIn(path, value);
+  };
+
+  if (!YAML.isMap(doc.contents)) {
+    doc.contents = doc.createNode(next);
+    return doc;
+  }
+  for (const k of Object.keys(next)) apply([k], next[k]);
+  for (const k of nodeKeys(doc.contents)) {
+    if (!Object.prototype.hasOwnProperty.call(next, k)) doc.deleteIn([k]);
+  }
+  return doc;
+}
+
+// lineWidth 0 desliga a quebra automatica: uma URL RTSP longa continua numa
+// linha so, em vez de ser dobrada de um jeito diferente a cada gravacao.
+function serialize() {
+  if (!baseDoc) return YAML.stringify(configDoc, { lineWidth: 0 });
+  const doc = baseDoc.clone();
+  applyToDoc(doc, configDoc);
+  return doc.toString({ lineWidth: 0 });
+}
+
 // ---------- tabs ----------
 $$("#tabs button").forEach(btn => {
   btn.onclick = () => {
     $$("#tabs button").forEach(b => b.classList.toggle("active", b === btn));
     const tab = btn.dataset.tab;
     $$(".tab").forEach(s => s.classList.toggle("active", s.dataset.tab === tab));
-    if (tab === "raw") $("#rawEditor").value = jsyaml.dump(configDoc, { lineWidth: 120, noRefs: true });
+    if (tab === "raw") $("#rawEditor").value = serialize();
   };
 });
 
@@ -99,7 +147,9 @@ async function loadConfig() {
       try { text = JSON.parse(t); } catch {}
     }
     rawYaml = text;
-    configDoc = jsyaml.load(rawYaml) || {};
+    baseDoc = YAML.parseDocument(rawYaml);
+    if (baseDoc.errors.length) throw new Error(baseDoc.errors[0].message);
+    configDoc = baseDoc.toJS() || {};
     had = {
       mqtt: "mqtt" in configDoc,
       detectors: "detectors" in configDoc,
@@ -118,7 +168,7 @@ async function loadConfig() {
 
 async function saveConfig(restart = false) {
   collectAll();
-  const yaml = jsyaml.dump(configDoc, { lineWidth: 120, noRefs: true });
+  const yaml = serialize();
   const save_option = restart ? "restart" : "saveonly";
   setStatus("salvando...");
   try {
@@ -129,7 +179,10 @@ async function saveConfig(restart = false) {
     });
     const text = await res.text();
     if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
+    // O que foi gravado vira a nova base, senao a proxima gravacao aplicaria as
+    // mudancas sobre uma arvore desatualizada.
     rawYaml = yaml;
+    baseDoc = YAML.parseDocument(yaml);
     if (restart) {
       // O save_option=restart reinicia só o serviço frigate — o go2rtc NÃO
       // recarrega os streams sem reiniciar a unidade dele. Sem isto, mudanças
@@ -172,12 +225,16 @@ function collectAll() {
   collectCameras();
   // if raw tab is active, prefer raw
   if ($(".tab.active").dataset.tab === "raw") {
-    try {
-      configDoc = jsyaml.load($("#rawEditor").value) || {};
-    } catch (e) {
-      toast("YAML inválido: " + e.message, "err");
-      throw e;
+    const edited = YAML.parseDocument($("#rawEditor").value);
+    if (edited.errors.length) {
+      const msg = edited.errors[0].message;
+      toast("YAML inválido: " + msg, "err");
+      throw new Error(msg);
     }
+    // Texto editado a mao vira a nova base, com os comentarios que o usuario
+    // escreveu ali.
+    baseDoc = edited;
+    configDoc = edited.toJS() || {};
   }
 }
 
@@ -475,7 +532,7 @@ function cameraCard(name, cam) {
   // zones
   const zonesArea = el("textarea", { rows: 4, class: "mono",
     placeholder: "# YAML de zones, ex:\n# entrada:\n#   coordinates: 0,0,100,0,100,100" },
-    cam.zones ? jsyaml.dump(cam.zones) : "");
+    cam.zones ? YAML.stringify(cam.zones, { lineWidth: 0 }) : "");
 
   const card = el("div", { class: "list-item" },
     el("div", { class: "list-item-head" },
@@ -572,7 +629,7 @@ function cameraCard(name, cam) {
 
     const zonesText = zonesArea.value.trim();
     if (zonesText) {
-      try { out.zones = jsyaml.load(zonesText); }
+      try { out.zones = YAML.parse(zonesText); }
       catch (e) { toast(`Zones YAML inválido na câmera ${n}: ${e.message}`, "err"); throw e; }
     } else {
       delete out.zones;

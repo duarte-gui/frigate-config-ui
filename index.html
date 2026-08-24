@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Frigate UI — Config</title>
-<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
 <style>
   :root {
     --bg: #0b0f14; --panel: #151b23; --panel2: #1e252f; --border: #2a3340;
@@ -302,6 +301,24 @@
 
 <div id="toast" class="toast" style="display:none"></div>
 
-<script src="app.js"></script>
+<!-- A lib `yaml` e nao o js-yaml: ela expoe um Document com a arvore
+     comentada, o que permite gravar so os campos alterados e deixar
+     comentarios, ordem e formatacao do resto do arquivo intactos. Um
+     load/dump de js-yaml reescreve o arquivo inteiro e apaga os comentarios. -->
+<script type="module">
+  const status = document.getElementById("status");
+  try {
+    window.YAML = await import("https://cdn.jsdelivr.net/npm/yaml@2.9.0/+esm");
+    const s = document.createElement("script");
+    s.src = "app.js";
+    document.body.appendChild(s);
+  } catch (e) {
+    // Sem a lib nada funciona, e falhar em silencio deixaria a pagina em branco.
+    if (status) {
+      status.textContent = "falha ao carregar a biblioteca yaml (sem internet?)";
+      status.className = "status err";
+    }
+  }
+</script>
 </body>
 </html>
