@@ -81,6 +81,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._proxy("PUT")
         self.send_error(405)
 
+    def end_headers(self):
+        # Sem Cache-Control o navegador aplica cache heuristico: como o
+        # Last-Modified de um arquivo recem-instalado pode ser antigo, ele
+        # considera o app.js fresco por meses e nem revalida. Na pratica uma
+        # atualizacao do editor so aparecia depois de um reload forcado, e a
+        # combinacao "index.html novo + app.js velho" quebra a pagina.
+        # As respostas do proxy ficam de fora: quem manda nelas e o Frigate.
+        if not self.path.startswith("/api/"):
+            self.send_header("Cache-Control", "no-store, max-age=0")
+        super().end_headers()
+
     def log_message(self, fmt, *args):
         sys.stderr.write(f"[{self.log_date_time_string()}] {fmt % args}\n")
 
