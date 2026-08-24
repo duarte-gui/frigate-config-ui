@@ -529,6 +529,21 @@ function cameraCard(name, cam) {
   const objectsArea = el("textarea", { rows: 3, placeholder: "person\ncar" },
     (cam.objects?.track || []).join("\n"));
 
+  // review — quais zonas promovem um objeto detectado a alerta/deteccao.
+  // E o que decide o que vai para a linha do tempo e, com a retencao de
+  // alerta/deteccao, o que acaba gravado em disco.
+  const zoneNames = Object.keys(cam.zones || {});
+  // required_zones aceita uma string solta ou uma lista; normalizamos para
+  // uma zona por linha, como nos outros campos de lista do formulario.
+  const asLines = (v) => Array.isArray(v) ? v.join("\n") : (v ? String(v) : "");
+  const zonesHint = zoneNames.length
+    ? "uma por linha; vazio = qualquer lugar do quadro. Zonas desta câmera: " + zoneNames.join(", ")
+    : "esta câmera não tem zones definidas abaixo";
+  const alertZonesArea = el("textarea", { rows: 2, placeholder: zoneNames.join("\n") },
+    asLines(get(cam, "review.alerts.required_zones", "")));
+  const detectZonesArea = el("textarea", { rows: 2, placeholder: zoneNames.join("\n") },
+    asLines(get(cam, "review.detections.required_zones", "")));
+
   // zones
   const zonesArea = el("textarea", { rows: 4, class: "mono",
     placeholder: "# YAML de zones, ex:\n# entrada:\n#   coordinates: 0,0,100,0,100,100" },
@@ -576,6 +591,13 @@ function cameraCard(name, cam) {
       field("", motionMaskArea, "uma máscara por linha (formato x,y,x,y,...)"),
       headerWithTip("Zones (YAML)", "Áreas nomeadas da imagem (ex: garagem, portão). Usadas para alertas só quando objeto entra nelas."),
       field("", zonesArea, "editar em YAML; deixe vazio se não houver zones"),
+      headerWithTip("Revisão — zonas obrigatórias",
+        "Só objetos que entram em uma destas zonas viram alerta ou detecção. Vazio = qualquer posição no quadro conta. "
+        + "Como a gravação fica pendurada em alerta/detecção, isto é o que decide o que é gravado — zona filtra objeto, nunca movimento."),
+      el("div", { class: "grid" },
+        field("Alertas", alertZonesArea, zonesHint),
+        field("Detecções", detectZonesArea, zonesHint),
+      ),
     )
   );
   card.querySelector(".list-item-head").onclick = (e) => {
@@ -626,6 +648,22 @@ function cameraCard(name, cam) {
     const maskLines = motionMaskArea.value.split("\n").map(l => l.trim()).filter(Boolean);
     if (maskLines.length) out.motion = { ...(cam.motion || {}), mask: maskLines.length === 1 ? maskLines[0] : maskLines };
     else if (out.motion) delete out.motion.mask;
+
+    // review.*.required_zones: monta a partir do que ja existia, para nao
+    // perder outras chaves de review (labels, por exemplo).
+    const zoneLines = (ta) => ta.value.split("\n").map(l => l.trim()).filter(Boolean);
+    const review = { ...(cam.review || {}) };
+    const setRequiredZones = (key, vals) => {
+      const sub = { ...(review[key] || {}) };
+      if (vals.length) sub.required_zones = vals;
+      else delete sub.required_zones;
+      if (Object.keys(sub).length) review[key] = sub;
+      else delete review[key];
+    };
+    setRequiredZones("alerts", zoneLines(alertZonesArea));
+    setRequiredZones("detections", zoneLines(detectZonesArea));
+    if (Object.keys(review).length) out.review = review;
+    else delete out.review;
 
     const zonesText = zonesArea.value.trim();
     if (zonesText) {

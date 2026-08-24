@@ -17,6 +17,9 @@ navegador ──HTTP──> server.py (:8000) ──proxy /api/*──> Frigate 
 ## Funcionalidades
 
 - Edição visual de **câmeras** (inputs ffmpeg + roles, detect, record, snapshots, objetos, motion mask, zones em YAML)
+- **Zonas obrigatórias de revisão** por câmera (`review.alerts.required_zones` e
+  `review.detections.required_zones`) — o que decide quais zonas promovem um
+  objeto a alerta ou detecção e, por tabela, o que acaba gravado
 - **Reordenar câmeras por arrastar** (drag-and-drop pelo ícone ⠿) — a ordem no config é a ordem em que as câmeras aparecem nos clientes
 - Abas para MQTT, detectores, gravação, snapshots, objetos e **streams go2rtc**
 - Editor de **YAML cru** com substituição completa
